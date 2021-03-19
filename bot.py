@@ -5,6 +5,7 @@ import asyncio
 import datetime
 import os
 import random
+import json
 
 import discord
 import mysql.connector as mc
@@ -29,11 +30,17 @@ db = mc.connect(
 )
 cur = db.cursor()
 
+def get_prefix(client, msg):
+
+    with open("prefixes.json", "r") as f:
+        prefixes = json.load(f)
+
+    return prefixes[str(msg.guild.id)]
+
 # bot code
-prefix = 'finshots '
+
 client = commands.Bot(
-    command_prefix=[f"{prefix}", "Finshots ", "FINSHOTS ", "finshot ",
-                    "Finshot ", "FINSHOT "], case_insensitive=True)
+    command_prefix= get_prefix, case_insensitive=True)
 
 
 @client.event
@@ -111,7 +118,7 @@ async def on_ready():
     while not client.is_closed():
         names = {
             'playing': f"on {len(client.guilds)} servers",
-            'listening': f"{prefix}help"}
+            'listening': "finshots help"}
         types = {
             'playing': discord.ActivityType.playing,
             'listening': discord.ActivityType.listening}
@@ -372,6 +379,21 @@ async def date_search(ctx, text):
                 f'`{article[3]}`\n{article[0]}')
 
 
+@client.command(aliases = ["setprefix"])
+@commands.has_permissions(administrator = True)
+async def changeprefix(ctx, prefix):
+
+    with open("prefixes.json", "r") as f:
+        prefixes = json.load(f)
+
+    prefixes[str(ctx.guild.id)] = prefix
+
+    with open("prefixes.json", "w") as f:
+        json.dump(prefixes, f)
+
+    await ctx.send(f"The prefix for this server was changed to {prefix}")
+
+
 # Help commands
 
 client.remove_command('help')
@@ -381,11 +403,16 @@ client.remove_command('help')
 async def help(ctx):
     """displays the help for the bot in an embed"""
 
+    with open("prefixes.json", "r") as f:
+        prefixes = json.load(f)
+
+    pre = prefixes[str(ctx.guild.id)]
+
     colours = [discord.Colour.red(), discord.Colour.blue(),
                discord.Colour.green(), discord.Colour.teal(),
                discord.Colour.orange()]
     em = discord.Embed(
-        description="**FINSHOTS HELP**\n\n",
+        description=f"**{pre}help**\n\n",
         colour=random.choice(colours)
     )
     em.add_field(
@@ -399,7 +426,7 @@ async def help(ctx):
     em.add_field(
         name="**BOT COMMANDS:**  _(can be run in a both channels or "
         "in DM to the bot)_",
-        value="```prefix : finshots```", inline=False)
+        value=f"```prefix : {pre}```", inline=False)
     em.add_field(
         name="start",
         value="```start  Finshots updates in the channel/DM at a "
@@ -436,6 +463,15 @@ async def help(ctx):
 
 @ client.event
 async def on_guild_join(guild):
+
+    with open("prefixes.json", "r") as f:
+        prefixes = json.load(f)
+
+    prefixes[str(guild.id)] = ["finshots ", "finshot ", "FINSHOTS ", "FINSHOT", "Finshots ", "Finshot "]
+
+    with open("prefixes.json", "w") as f:
+        json.dump(prefixes, f)
+
     """bot will send a welcome message when it joins a server"""
 
     general = find(lambda x: x.name == 'general', guild.text_channels)
@@ -451,7 +487,7 @@ async def on_guild_join(guild):
         em = discord.Embed(title=title, description=description,
                            colour=discord.Colour.blue())
         em.add_field(name="Use Help Command to learn how to use",
-                     value=f"```{prefix} help```", inline=False)
+                     value="```finshots  help```", inline=False)
         em.add_field(
             name="NOTE:",
             value="```This bot and all its commands work in server "
@@ -460,6 +496,85 @@ async def on_guild_join(guild):
             "and click on message to DM the bot```",
             inline=False)
         await general.send(embed=em)
+
+@client.event
+async def on_message(msg):
+
+    if msg.content.startswith("finshots help"):
+        """displays the help for the bot in an embed"""
+
+        with open("prefixes.json", "r") as f:
+            prefixes = json.load(f)
+
+        pre = prefixes[str(msg.guild.id)]
+
+        colours = [discord.Colour.red(), discord.Colour.blue(),
+        discord.Colour.green(), discord.Colour.teal(),
+        discord.Colour.orange()]
+        em = discord.Embed(
+        description=f"**{pre}help**\n\n",
+        colour=random.choice(colours)
+        )
+        em.add_field(
+        name="**Description**",
+        value="```This is a simple bot that can send updates (new "
+        "articles) from FINSHOTS website to a specific "
+        "channel in a server or to individual users on their "
+        "DM everyday at the time specified by user.```\n",
+        inline=False
+        )
+        em.add_field(
+        name="**BOT COMMANDS:**  _(can be run in a both channels or "
+        "in DM to the bot)_",
+        value=f"```prefix : {pre}```", inline=False)
+        em.add_field(
+        name="start",
+        value="```start  Finshots updates in the channel/DM at a "
+        "specified time\nsyntax :  start HH:MM (24 hr. clock "
+        "format)```",
+        inline=False
+        )
+        em.add_field(
+        name="update_time",
+        value="```update time of the channel/DM for the Finshots "
+        "updates\nsyntax :  update_time HH:MM Asia/Kolkata (24 hr. clock "
+        "format)```",
+        inline=False
+        )
+        em.add_field(
+        name="stop",
+        value="```stop Finshots updates for the channel/DM\nsyntax "
+        ":  stop```",
+        inline=False)
+        em.add_field(
+        name="latest",
+        value="```sends the latest articles of the specified category stored"
+        " in the bot database"
+        "\nsyntax :  latest <category name> (optional argument)"
+        "\ncategory names :  daily, markets, brief, infographics```",
+        inline=False)
+        em.add_field(
+        name="feeling lucky",
+        value="```sends a random article"
+        "\nsyntax :  feeling lucky```",
+        inline=False)
+        await msg.channel.send(embed=em)        
+
+    try:
+
+        if msg.mentions[0] == client.user:
+
+            with open("prefixes.json", "r") as f:
+                prefixes = json.load(f)
+
+            pre = prefixes[str(msg.guild.id)]
+
+            await msg.channel.send(f"My prefix for this server is {pre}")
+
+    except:
+        pass
+
+    await client.process_commands(msg)
 
 
 # launching the bot
